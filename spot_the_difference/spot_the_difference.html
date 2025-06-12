@@ -371,8 +371,8 @@
             currentDifferences = ALL_DIFFERENCES.map(diff => ({ ...diff, found: false }));
             updateGameInfo();
             clearCanvas();
-			originalImage.src = 'original_image.png'; // 예시: 'my_original_drawing.png'
-            diffImage.src = 'diff_image.png';       // 예시: 'my_diff_drawing.png'
+			originalImage.src = 'original_image1.png'; // 예시: 'my_original_drawing.png'
+            diffImage.src = 'diff_image1.png';       // 예시: 'my_diff_drawing.png'
 
             originalImage.onerror = () => {
                 console.error("원본 그림 로드 실패: original_image.png 파일이 없거나 경로가 잘못되었습니다.");
