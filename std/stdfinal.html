@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>틀린그림찾기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome 아이콘 라이브러리 추가 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" xintegrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Tone.js 라이브러리 추가: 소리 재생에 사용 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            /* 배경 스타일 수정: 그라데이션과 패턴 이미지 동시 적용 */
+            background: 
+                linear-gradient(to bottom, rgba(0, 6, 64, 0.8) 0%, rgba(3, 73, 150, 0.8) 100%), /* 상단에 반투명 그라데이션 */
+                url('bg.png') repeat; /* 하단에 패턴 이미지 반복 */
+            background-color: #6a11cb; /* 이미지 로드 실패 시 대체 배경색 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: #fff;
+        }
+        /* 좌우 배경 이미지 스타일 */
+        .background-image-side {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 680px; /* 이미지 너비 (조정 가능) */
+            height: 750px; /* 이미지 높이 (조정 가능) */
+            background-repeat: no-repeat;
+            background-size: contain;
+            z-index: -1; /* 게임 컨테이너 뒤로 */
+        }
+        .left-background-image {
+            left: 0;
+            background-image: url('left_bg.png'); /* 왼쪽 배경 이미지 경로 */
+        }
+        .right-background-image {
+            right: 0;
+            background-image: url('right_bg.png'); /* 오른쪽 배경 이미지 경로 */
+        }
+
+        .game-container {
+            background-color: rgba(255, 255, 255, 0.15); /* 반투명 배경 */
+            border-radius: 1.5rem; /* 둥근 모서리 */
+            padding: 3.5rem; /* 패딩 */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); /* 그림자 */
+            backdrop-filter: blur(10px); /* 블러 효과 */
+            border: 1px solid rgba(255, 255, 255, 0.3); /* 연한 테두리 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem; /* 요소 간 간격 */
+        }
+        .instruction-text {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-top: 0.1rem; /* 간격 좁힘 */
+            text-align: center;
+            width: 100%;
+        }
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 1.5rem;
+            padding: 0 1rem;
+            box-sizing: border-box;
+            flex-wrap: wrap;
+        }
+        h1 {
+            font-size: 3.5rem !important; /* 제목 크기 */
+            font-weight: 700;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.6);
+            margin: 0;
+            flex-grow: 1;
+            text-align: left;
+            line-height: 1;
+        }
+        .info-group {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-shrink: 0;
+        }
+        .image-display {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .image-wrapper {
+            position: relative;
+            border: 5px solid #fcd34d; /* 테두리 색상 */
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+        }
+        .game-image {
+            width: 600px; /* 이미지 너비 */
+            height: 889px; /* 이미지 높이 */
+            display: block;
+            object-fit: contain; /* 이미지가 잘리지 않도록 비율 유지 */
+            background-color: #000; /* 이미지 로딩 전 배경 */
+        }
+        #rightImageCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair; /* 클릭 커서 */
+        }
+        .game-info {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        /* 진행 바 타이머 스타일 */
+        #progressBarContainer {
+            width: 100%; /* 부모 너비를 꽉 채움 */
+            height: 25px; /* 진행 바 높이 */
+            background-color: rgba(0, 0, 0, 0.3); /* 배경색: 어두운 투명색 */
+            border: none; /* 노란색 테두리 제거 */
+            border-radius: 12.5px; /* 둥근 모서리 (높이의 절반) */
+            overflow: hidden; /* 내부 요소가 넘치지 않도록 */
+            position: relative;
+            margin-top: 0.1rem; /* 이미지와의 간격 */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4); /* 그림자 */
+        }
+        #progressBarFill {
+            height: 100%;
+            width: 0%; /* 초기 너비 0% (왼쪽에서 오른쪽으로 차오름) */
+            background: linear-gradient(to right, #ef4444, #dc2626); /* 빨간색 그라데이션 */
+            transition: width 0.5s linear; /* 너비 변화 애니메이션 */
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #progressBarText {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem; /* 이미지에 맞게 폰트 크기 조정 */
+            font-weight: 700;
+            color: white; /* 텍스트 색상: 흰색 */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8); /* 텍스트 그림자 유지 */
+            z-index: 1; /* 바 위에 텍스트가 표시되도록 */
+        }
+
+        .buttons-container {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .game-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 1rem;
+            font-size: 1.25rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 6px #388E3C;
+        }
+        .game-button:hover {
+            background-color: #45a049;
+            transform: translateY(-3px);
+            box-shadow: 0 9px #388E3C;
+        }
+        .game-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px #388E3C;
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 50px 60px;
+            border-radius: 1.5rem;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            z-index: 1000;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.6);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+        .message-box button {
+            background-color: #fcd34d;
+            color: #333;
+            padding: 1.2rem 3rem;
+            border: none;
+            border-radius: 1rem;
+            font-size: 1.4rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 5px #eab308;
+        }
+        .message-box button:hover {
+            background-color: #eab308;
+            transform: translateY(-2px);
+            box-shadow: 0 7px #d97706;
+        }
+        .message-box button:active {
+            transform: translateY(2px);
+            box-shadow: 0 3px #d97706;
+        }
+        /* 힌트 버튼 스타일 */
+        #hintButton {
+            background-color: #0091ff;
+            border-radius: 50%;
+            width: 60px; /* 이미지 크기에 맞춰 조정 */
+            height: 60px; /* 이미지 크기에 맞춰 조정 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+            box-shadow: 0 4px rgba(0, 0, 0, 0.3);
+            margin-left: 1rem;
+        }
+        #hintButton:hover {
+            background-color: #005eff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px rgba(0, 0, 0, 0.4);
+        }
+        #hintButton:active {
+            transform: translateY(0);
+            box-shadow: 0 2px rgba(0, 0, 0, 0.2);
+        }
+        #hintButton i {
+            color: white;
+            font-size: 28px;
+        }
+        #hintButton:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: lightgray;
+        }
+        /* 라이프 하트 아이콘 스타일 */
+        .heart-icon {
+            font-size: 2.2rem;
+            margin: 0 2px;
+            transition: color 0.3s ease;
+        }
+        .heart-icon.red {
+            color: #ef4444;
+        }
+        .heart-icon.black {
+            color: #4b5563;
+        }
+
+
+        /* 반응형 디자인 조정 */
+        @media (max-width: 1300px) {
+            .game-image {
+                width: 450px;
+                height: 667px;
+            }
+            .game-container {
+                padding: 2.5rem;
+                gap: 1.5rem;
+            }
+            h1 {
+                font-size: 3rem !important;
+            }
+            .info-group {
+                gap: 0.8rem;
+            }
+            .game-info {
+                font-size: 1.1rem;
+                padding: 0.6rem 1.2rem;
+                border-radius: 1.2rem;
+            }
+            #progressBarContainer {
+                height: 20px;
+                border-radius: 10px;
+                margin-top: 0.6rem;
+            }
+            #progressBarText {
+                font-size: 1rem;
+            }
+            .game-button {
+                font-size: 1.1rem;
+                padding: 0.9rem 1.8rem;
+            }
+            #hintButton {
+                width: 50px;
+                height: 50px;
+                margin-left: 0.8rem;
+            }
+            #hintButton i {
+                font-size: 24px;
+            }
+            .heart-icon {
+                font-size: 1.8rem;
+            }
+            /* 배경 이미지 반응형 - 좁아지면 사라짐 */
+            .background-image-side {
+                display: none;
+            }
+        }
+
+        @media (max-width: 960px) {
+            .game-image {
+                width: 380px;
+                height: 564px;
+            }
+            h1 {
+                font-size: 2.5rem !important;
+            }
+            .info-group {
+                gap: 0.6rem;
+            }
+            .game-info {
+                font-size: 1rem;
+                padding: 0.5rem 1rem;
+                border-radius: 1rem;
+            }
+            #progressBarContainer {
+                height: 18px;
+                border-radius: 9px;
+                margin-top: 0.5rem;
+            }
+            #progressBarText {
+                font-size: 0.9rem;
+            }
+            .game-button {
+                font-size: 1rem;
+                padding: 0.8rem 1.6rem;
+            }
+            .message-box {
+                font-size: 1.4rem;
+                padding: 30px;
+            }
+            .message-box button {
+                font-size: 1.1rem;
+                padding: 0.9rem 1.8rem;
+            }
+            #hintButton {
+                width: 40px;
+                height: 40px;
+                margin-left: 0.6rem;
+            }
+            #hintButton i {
+                font-size: 20px;
+            }
+            .heart-icon {
+                font-size: 1.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 1.5rem;
+            }
+            .header-bar {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: center;
+                padding: 0;
+            }
+            h1 {
+                font-size: 2rem !important;
+                text-align: center;
+                width: auto;
+            }
+            .info-group {
+                flex-direction: row; /* 작은 화면에서 다시 가로로 정렬 */
+                gap: 0.5rem;
+                width: 100%;
+                justify-content: center; /* 중앙 정렬 */
+            }
+            .game-info {
+                font-size: 0.9rem;
+                text-align: center;
+                width: auto;
+                padding: 0.4rem 0.8rem;
+                border-radius: 0.8rem;
+            }
+            #progressBarContainer {
+                height: 15px;
+                border-radius: 7.5px;
+                margin-top: 0.4rem;
+            }
+            #progressBarText {
+                font-size: 0.7rem;
+            }
+            .image-display {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .game-image {
+                width: 100%;
+                height: auto;
+                max-width: 450px;
+            }
+            #hintButton {
+                width: 30px;
+                height: 30px;
+                margin-left: 0.5rem;
+            }
+            #hintButton i {
+                font-size: 16px;
+            }
+            .heart-icon {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 좌우 배경 이미지 div 추가 -->
+    <div class="background-image-side left-background-image"></div>
+    <div class="background-image-side right-background-image"></div>
+
+    <div class="game-container">
+        <div class="header-bar">
+            <h1 id="gameTitle">틀린그림찾기 1탄</h1>
+            <div class="info-group">
+                <div class="game-info" id="gameInfo">찾은 틀린 그림: 0 / 10</div>
+                <!-- 하트 아이콘 표시 -->
+                <div id="livesDisplay" class="flex gap-1 items-center">
+                    <i class="fas fa-heart heart-icon red"></i>
+                    <i class="fas fa-heart heart-icon red"></i>
+                    <i class="fas fa-heart heart-icon red"></i>
+                </div>
+                <!-- 힌트 버튼 -->
+                <button id="hintButton">
+                    <i class="fas fa-search"></i> <!-- 돋보기 아이콘 -->
+                </button>
+            </div>
+        </div>
+        <div class="image-display">
+            <div class="image-wrapper">
+                <img id="originalImage" src="https://placehold.co/600x889/ADD8E6/000?text=원본+그림" alt="원본 그림" class="game-image">
+            </div>
+            <div class="image-wrapper">
+                <img id="diffImage" src="https://placehold.co/600x889/ADD8E6/000?text=틀린+그림" alt="틀린 그림" class="game-image">
+                <canvas id="rightImageCanvas"></canvas>
+            </div>
+        </div>
+        <!-- 진행 바 타이머 추가 -->
+        <div id="progressBarContainer">
+            <div id="progressBarFill"></div>
+            <span id="progressBarText">0분 0초</span>
+        </div>
+        <div id="instructionMessage" class="instruction-text">오른쪽 그림에서 틀린 부분을 찾아 클릭하세요!</div>
+    </div>
+
+    <!-- Message Box -->
+    <div id="messageBox" class="message-box">
+        <p id="messageText"></p>
+        <button id="messageButton">확인</button>
+    </div>
+
+    <script>
+        const originalImage = document.getElementById('originalImage');
+        const diffImage = document.getElementById('diffImage');
+        const rightImageCanvas = document.getElementById('rightImageCanvas');
+        const ctx = rightImageCanvas.getContext('2d');
+        const gameInfo = document.getElementById('gameInfo');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const messageButton = document.getElementById('messageButton');
+        const hintButton = document.getElementById('hintButton');
+        const livesDisplay = document.getElementById('livesDisplay');
+        const heartIcons = livesDisplay.getElementsByTagName('i');
+        const gameTitle = document.getElementById('gameTitle');
+
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressBarText = document.getElementById('progressBarText');
+
+
+        // Tone.js Synth (띵동 소리 생성)
+        const synth = new Tone.Synth().toDestination();
+        // Tone.js 오답 부저음 Synth 추가
+        const buzzerSynth = new Tone.Synth({
+            oscillator: { type: "square" },
+            envelope: {
+                attack: 0.01,
+                decay: 0.1,
+                sustain: 0.0,
+                release: 0.2
+            }
+        }).toDestination();
+
+        const startAudioContext = async () => {
+            try {
+                await Tone.start();
+                console.log("AudioContext started.");
+            } catch (e) {
+                console.warn("AudioContext could not start automatically:", e);
+            }
+        };
+
+        let foundDifferencesCount = 0;
+        let gameActive = false;
+        let timeLeft = 180; // 3분 (180초)
+        let totalGameTime = 180; // 진행 바 계산을 위한 총 시간
+        let timerInterval;
+        let hintsRemaining = 1;
+        const MAX_WRONG_GUESSES = 3;
+        let wrongGuessesCount = 0;
+
+        const IMAGE_WIDTH = 600;
+        const IMAGE_HEIGHT = 889;
+
+        rightImageCanvas.width = IMAGE_WIDTH;
+        rightImageCanvas.height = IMAGE_HEIGHT;
+
+        // --- 중요: 게임 레벨 데이터 ---
+        const gameLevels = [
+            { // Level 1
+                title: '틀린그림찾기 1탄',
+                originalSrc: 'original_image.png',
+                diffSrc: 'diff_image.png',
+                differences: [
+                    { x: 139, y: 621, width: 24, height: 24, found: false },
+                    { x: 248, y: 40, width: 24, height: 24, found: false },
+                    { x: 473, y: 826, width: 48, height: 44, found: false },
+                    { x: 36, y: 617, width: 36, height: 36, found: false },
+                    { x: 422, y: 110, width: 64, height: 52, found: false },
+                    { x: 235, y: 791, width: 60, height: 64, found: false },
+                    { x: 250, y: 603, width: 26, height: 23, found: false },
+                    { x: 189, y: 699, width: 40, height: 28, found: false },
+                    { x: 392, y: 721, width: 130, height: 30, found: false },
+                    { x: 61, y: 59, width: 100, height: 100, found: false }
+                ]
+            },
+            { // Level 2
+                title: '틀린그림찾기 2탄',
+                originalSrc: 'original_image2.png',
+                diffSrc: 'diff_image2.png',
+                differences: [
+                    { x: 65, y: 532, width: 30, height: 30, found: false },
+                    { x: 274, y: 202, width: 48, height: 20, found: false },
+                    { x: 0, y: 85, width: 38, height: 24, found: false },
+                    { x: 381, y: 360, width: 142, height: 54, found: false },
+                    { x: 548, y: 529, width: 36, height: 40, found: false },
+                    { x: 432, y: 790, width: 87, height: 52, found: false },
+                    { x: 273, y: 684, width: 62, height: 16, found: false },
+                    { x: 318, y: 566, width: 32, height: 32, found: false },
+                    { x: 8, y: 707, width: 80, height: 70, found: false },
+                    { x: 145, y: 320, width: 37, height: 30, found: false }
+                ]
+            }
+        ];
+
+        let currentLevelIndex = 0;
+        let currentDifferences = [];
+
+        function loadLevel(levelIndex) {
+            if (levelIndex >= gameLevels.length) {
+                endGame('all_levels_completed');
+                return;
+            }
+
+            currentLevelIndex = levelIndex;
+            const levelData = gameLevels[currentLevelIndex];
+
+            foundDifferencesCount = 0;
+            wrongGuessesCount = 0;
+            hintsRemaining = 1;
+            hintButton.disabled = false;
+            
+            clearInterval(timerInterval); // 기존 타이머 중지
+            timeLeft = totalGameTime; // 타이머 초기화 (3분)
+            updateTimerDisplay(); // 타이머 표시 업데이트
+
+            updateLivesDisplay();
+            
+            currentDifferences = levelData.differences.map(diff => ({ ...diff, found: false }));
+            updateGameInfo();
+            clearCanvas();
+
+            gameTitle.textContent = levelData.title;
+
+            originalImage.src = levelData.originalSrc;
+            diffImage.src = levelData.diffSrc;
+
+            let loadedImagesCount = 0;
+            const totalImagesToLoad = 2;
+
+            const checkAllImagesLoaded = () => {
+                loadedImagesCount++;
+                if (loadedImagesCount === totalImagesToLoad) {
+                    gameActive = true; // 모든 이미지 로드 완료 후 게임 활성화
+                    // 타이머 시작 (loadLevel에서 직접 시작)
+                    timerInterval = setInterval(() => {
+                        timeLeft--;
+                        updateTimerDisplay();
+                        if (timeLeft <= 0) {
+                            clearInterval(timerInterval);
+                            endGame('lose'); // 시간 초과로 게임 오버
+                        }
+                    }, 1000);
+                }
+            };
+
+            originalImage.onload = checkAllImagesLoaded;
+            diffImage.onload = checkAllImagesLoaded;
+
+            originalImage.onerror = () => {
+                console.error(`원본 그림 로드 실패: ${levelData.originalSrc}`);
+                originalImage.src = `https://placehold.co/${IMAGE_WIDTH}x${IMAGE_HEIGHT}/ADD8E6/000?text=원본+그림+로드+실패`;
+                checkAllImagesLoaded();
+            };
+            diffImage.onerror = () => {
+                console.error(`틀린 그림 로드 실패: ${levelData.diffSrc}`);
+                diffImage.src = `https://placehold.co/${IMAGE_WIDTH}x${IMAGE_HEIGHT}/ADD8E6/000?text=틀린+그림+로드+실패`;
+                checkAllImagesLoaded();
+            };
+        }
+
+        // 게임 초기화 (페이지 로드 시 호출)
+        function initializeGame() {
+            loadLevel(0);
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, rightImageCanvas.width, rightImageCanvas.height);
+            const originalCanvas = document.getElementById('originalImageCanvas');
+            if (originalCanvas) {
+                originalCanvas.getContext('2d').clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+            }
+        }
+
+        function updateGameInfo() {
+            gameInfo.textContent = `찾은 틀린 그림: ${foundDifferencesCount} / ${currentDifferences.length}`;
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            
+            // 진행 바 텍스트 업데이트
+            progressBarText.textContent = `${minutes.toString().padStart(2, '0')}분 ${seconds.toString().padStart(2, '0')}초`;
+
+            // 진행 바 너비 업데이트 (남은 시간에 비례하여 왼쪽에서 오른쪽으로 채워지도록)
+            // 경과된 시간 = 총 시간 - 남은 시간
+            const elapsedTime = totalGameTime - timeLeft;
+            const percentage = (elapsedTime / totalGameTime) * 100;
+            progressBarFill.style.width = `${percentage}%`;
+        }
+
+        function updateLivesDisplay() {
+            for (let i = 0; i < MAX_WRONG_GUESSES; i++) {
+                if (i < (MAX_WRONG_GUESSES - wrongGuessesCount)) {
+                    heartIcons[i].classList.remove('black');
+                    heartIcons[i].classList.add('red');
+                } else {
+                    heartIcons[i].classList.remove('red');
+                    heartIcons[i].classList.add('black');
+                }
+            }
+        }
+
+        async function handleCanvasClick(event) {
+            if (!gameActive) return;
+
+            if (Tone.context.state !== 'running') {
+                await startAudioContext();
+            }
+
+            const rect = rightImageCanvas.getBoundingClientRect();
+            const scaleX = rightImageCanvas.width / rect.width;
+            const scaleY = rightImageCanvas.height / rect.height;
+            const clickX = (event.clientX - rect.left) * scaleX;
+            const clickY = (event.clientY - rect.top) * scaleY;
+
+            let foundNewDifference = false;
+            currentDifferences.forEach(diff => {
+                if (!diff.found &&
+                    clickX >= diff.x &&
+                    clickX <= diff.x + diff.width &&
+                    clickY >= diff.y &&
+                    clickY <= diff.y + diff.height) {
+                    
+                    diff.found = true;
+                    foundDifferencesCount++;
+                    foundNewDifference = true;
+                    drawFoundDifference(diff);
+                    updateGameInfo();
+                    
+                    playDingSound();
+
+                    if (foundDifferencesCount === currentDifferences.length) {
+                        endGame('win');
+                    }
+                }
+            });
+
+            if (!foundNewDifference) {
+                playBuzzerSound();
+                drawWrongClick(clickX, clickY);
+                wrongGuessesCount++;
+                updateLivesDisplay();
+                if (wrongGuessesCount >= MAX_WRONG_GUESSES) {
+                    endGame('wrong_guesses');
+                }
+            }
+        }
+
+        function drawFoundDifference(diff) { 
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            const radius = Math.max(diff.width, diff.height) / 2;
+            const centerX = diff.x + diff.width / 2;
+            const centerY = diff.y + diff.height / 2;
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); 
+            ctx.stroke();
+
+            const originalCanvas = document.getElementById('originalImageCanvas');
+            let originalDrawCtx;
+
+            if (!originalCanvas) {
+                const newOriginalCanvas = document.createElement('canvas');
+                newOriginalCanvas.id = 'originalImageCanvas';
+                newOriginalCanvas.width = IMAGE_WIDTH;
+                newOriginalCanvas.height = IMAGE_HEIGHT;
+                newOriginalCanvas.style.position = 'absolute';
+                newOriginalCanvas.style.top = '0';
+                newOriginalCanvas.style.left = '0';
+                originalImage.parentNode.appendChild(newOriginalCanvas);
+                originalDrawCtx = newOriginalCanvas.getContext('2d');
+            } else {
+                originalDrawCtx = originalCanvas.getContext('2d');
+            }
+            
+            originalDrawCtx.strokeStyle = 'red';
+            originalDrawCtx.lineWidth = 3;
+            originalDrawCtx.setLineDash([]);
+            originalDrawCtx.beginPath();
+            originalDrawCtx.arc(centerX, centerY, radius, 0, Math.PI * 2); 
+            originalDrawCtx.stroke();
+        }
+
+        function playDingSound() {
+            synth.triggerAttackRelease("C5", "8n");
+            synth.triggerAttackRelease("G5", "8n", "+0.1");
+        }
+
+        function playBuzzerSound() {
+            buzzerSynth.triggerAttackRelease("F3", "8n");
+        }
+
+        function showMessage(text, callback) {
+            messageText.textContent = text;
+            messageBox.style.display = 'flex';
+            messageButton.onclick = () => {
+                messageBox.style.display = 'none';
+                if (callback) callback();
+            };
+        }
+
+        function endGame(result) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            if (result === 'win') {
+                if (currentLevelIndex + 1 < gameLevels.length) {
+                    showMessage(`축하합니다! 다음 단계로 이어집니다!`, () => loadLevel(currentLevelIndex + 1));
+                } else {
+                    showMessage(`모든 레벨을 완료했습니다! 축하합니다!`, () => loadLevel(0));
+                }
+            } else if (result === 'lose') {
+                showMessage(`시간 초과! 게임 오버!`, () => loadLevel(currentLevelIndex));
+            } else if (result === 'wrong_guesses') {
+                showMessage(`오답 3회 초과! 게임 오버!`, () => loadLevel(currentLevelIndex));
+            } else {
+                showMessage(`게임 종료!`, () => loadLevel(0));
+            }
+        }
+
+        function drawWrongClick(x, y) {
+            const MARK_SIZE = 35;
+            const LINE_WIDTH = 3;
+            const DURATION = 800;
+
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+            ctx.lineWidth = LINE_WIDTH;
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.moveTo(x - MARK_SIZE / 2, y - MARK_SIZE / 2);
+            ctx.lineTo(x + MARK_SIZE / 2, y + MARK_SIZE / 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(x + MARK_SIZE / 2, y - MARK_SIZE / 2);
+            ctx.lineTo(x - MARK_SIZE / 2, y + MARK_SIZE / 2);
+            ctx.stroke();
+
+            setTimeout(() => {
+                clearCanvas(); 
+                currentDifferences.forEach(diff => {
+                    if (diff.found) {
+                        drawFoundDifference(diff);
+                    }
+                });
+            }, DURATION);
+        }
+
+        async function giveHint() {
+            if (!gameActive || hintsRemaining <= 0) {
+                return;
+            }
+
+            if (Tone.context.state !== 'running') {
+                await startAudioContext();
+            }
+
+            hintsRemaining--;
+            hintButton.disabled = true;
+
+            const unfoundDifferences = currentDifferences.filter(diff => !diff.found);
+            if (unfoundDifferences.length > 0) {
+                const randomIndex = Math.floor(Math.random() * unfoundDifferences.length);
+                const hintDiff = unfoundDifferences[randomIndex];
+
+                let blinkCount = 0;
+                const blinkInterval = setInterval(() => {
+                    const centerX = hintDiff.x + hintDiff.width / 2;
+                    const centerY = hintDiff.y + hintDiff.height / 2;
+                    const radius = Math.max(hintDiff.width, hintDiff.height) / 2;
+                    const clearPadding = 5;
+
+                    if (blinkCount % 2 === 0) {
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                        ctx.lineWidth = 4;
+                        ctx.setLineDash([]);
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    } else {
+                        ctx.clearRect(centerX - radius - clearPadding, centerY - radius - clearPadding, (radius + clearPadding) * 2, (radius + clearPadding) * 2); 
+                        currentDifferences.forEach(diff => {
+                            if (diff.found) {
+                                drawFoundDifference(diff);
+                            }
+                        });
+                    }
+                    blinkCount++;
+
+                    if (blinkCount >= 8) {
+                        clearInterval(blinkInterval);
+                        ctx.clearRect(centerX - radius - clearPadding, centerY - radius - clearPadding, (radius + clearPadding) * 2, (radius + clearPadding) * 2);
+                        currentDifferences.forEach(diff => {
+                            if (diff.found) {
+                                drawFoundDifference(diff);
+                            }
+                        });
+                    }
+                }, 100);
+            }
+        }
+
+        rightImageCanvas.addEventListener('click', handleCanvasClick);
+        hintButton.addEventListener('click', giveHint);
+
+        // 게임 시작: 페이지 로드 시 첫 번째 레벨을 로드
+        initializeGame(); 
+    </script>
+</body>
+</html>
