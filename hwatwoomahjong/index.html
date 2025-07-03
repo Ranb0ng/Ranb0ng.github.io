@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>화투패 사천성</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, rgba(26, 95, 63, 0.3), rgba(45, 74, 54, 0.3)), url('images/pattern.png');
+            background-size: auto, 110px 110px;
+            background-repeat: no-repeat, repeat;
+            background-attachment: fixed, fixed;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+        }
+
+        function createExplosionEffect(cardElement) {
+            const rect = cardElement.getBoundingClientRect();
+            const gameBoard = document.getElementById('gameBoard');
+            const boardRect = gameBoard.getBoundingClientRect();
+            
+            // 카드 중심점 계산 (게임보드 기준)
+            const centerX = rect.left + rect.width / 2 - boardRect.left;
+            const centerY = rect.top + rect.height / 2 - boardRect.top;
+            
+            // 폭발 컨테이너 생성
+            const explosion = document.createElement('div');
+            explosion.className = 'explosion-effect';
+            explosion.style.left = centerX + 'px';
+            explosion.style.top = centerY + 'px';
+            
+            // 별 이펙트 추가
+            for (let i = 0; i < 6; i++) {
+                const star = document.createElement('div');
+                star.className = 'explosion-star';
+                star.textContent = '✨';
+                const angle = (i * 60) * Math.PI / 180;
+                const distance = 30;
+                star.style.left = (Math.cos(angle) * distance - 10) + 'px';
+                star.style.top = (Math.sin(angle) * distance - 10) + 'px';
+                star.style.animationDelay = (i * 0.1) + 's';
+                explosion.appendChild(star);
+            }
+            
+            // 파티클 이펙트 추가
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3'];
+            for (let i = 0; i < 12; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'explosion-particle';
+                particle.style.backgroundColor = colors[i % colors.length];
+                
+                const angle = (i * 30) * Math.PI / 180;
+                const distance = 40 + Math.random() * 20;
+                const dx = Math.cos(angle) * distance;
+                const dy = Math.sin(angle) * distance;
+                
+                particle.style.setProperty('--dx', dx + 'px');
+                particle.style.setProperty('--dy', dy + 'px');
+                particle.style.animationDelay = (Math.random() * 0.2) + 's';
+                
+                explosion.appendChild(particle);
+            }
+            
+            gameBoard.appendChild(explosion);
+            
+            // 0.8초 후 이펙트 제거
+            setTimeout(() => {
+                if (explosion.parentNode) {
+                    explosion.remove();
+                }
+            }, 800);
+        }
+
+        function playMatchSound() {
+            // Web Audio API를 사용한 "펑!" 소리 생성
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 높은 주파수의 짧은 소리 생성
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // "펑!" 소리를 위한 주파수 설정
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.2);
+                
+                // 볼륨 설정 (빠르게 감소)
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                // 소리 재생
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+                
+            } catch (error) {
+                // 오디오 지원이 안 되는 경우 무시
+                console.log('Audio not supported');
+            }
+        }
+
+        .header {
+            display: grid;
+            grid-template-columns: 200px 1fr 200px;
+            gap: 20px;
+            width: 1100px;
+            margin-bottom: 20px;
+        }
+
+        .left-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+            margin-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        .title-image {
+            width: 454px;
+            height: 167px;
+            background: #ff0000;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 auto;
+        }
+
+        .right-info {
+            width: 200px;
+            text-align: center;
+            margin-top: 50px;
+            margin-left: -60px; /* 안쪽으로 이동 */
+        }
+
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px #388E3C;
+            min-width: 120px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover { 
+            background: #2196F3; 
+            box-shadow: 0 4px #1976D2; 
+            transform: translateY(-2px); 
+        }
+        .btn:disabled { background: #666; cursor: not-allowed; }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 4px;
+            width: 1100px;
+            background: rgba(0,0,0,0.3);
+            padding: 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card {
+            width: 84px;
+            height: 120px;
+            background: #f5f5dc;
+            border: 2px solid #8b4513;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+            color: #2c1810;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .card.has-image {
+            background: none;
+            border: 2px solid #8b4513;
+        }
+
+        .explosion-effect {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .explosion-particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: explode 0.8s ease-out forwards;
+        }
+
+        .explosion-star {
+            position: absolute;
+            color: #ffd700;
+            font-size: 20px;
+            animation: starBurst 0.8s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(0) translate(0, 0);
+                opacity: 1;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1) translate(var(--dx), var(--dy));
+                opacity: 0;
+            }
+        }
+
+        @keyframes starBurst {
+            0% {
+                transform: scale(0) rotate(0deg);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5) rotate(180deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.5) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .card.has-image .card-content {
+            display: none;
+        }
+
+        .card:hover { transform: scale(1.05); }
+        .card.selected { background: #ffeb3b; border-color: #ffc107; transform: scale(1.1); }
+        .card.hint { background: #ff9800; animation: hintPulse 1s infinite; }
+        .card.empty { background: transparent; border: none; cursor: default; }
+        .card.empty:hover { transform: none; }
+
+        @keyframes hintPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .status {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            min-height: 30px;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .rules {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            z-index: 2000;
+            border: 2px solid #ffd700;
+        }
+
+        .rules-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1999;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="left-controls">
+            <button class="btn" onclick="toggleRules()">게임방법</button>
+            <button class="btn" onclick="startNewGame()">새게임</button>
+            <button class="btn" onclick="getHint()" id="hintBtn">힌트 (3번)</button>
+            <button class="btn" onclick="shuffleCards()" id="shuffleBtn">섞기 (2번)</button>
+        </div>
+        
+        <div class="title-image" id="gameTitle">화투패 사천성</div>
+        
+        <div class="right-info">
+            <div style="font-size: 1.4em; margin-bottom: 2px;">시간: <span id="timer">00:00</span></div>
+            <div style="font-size: 1.8em; color: #ffd700; font-weight: bold;">점수: <span id="score">0</span>점</div>
+        </div>
+    </div>
+
+    <div class="status" id="status">같은 월과, 같은 캐릭터 세트를 한쌍씩 찾으세요!</div>
+    <div id="gameBoard" class="game-board"></div>
+
+    <div id="gameOver" class="game-over" style="display: none;">
+        <h2 style="color: #ffd700;">🎉 게임 완료!</h2>
+        <p>최종 시간: <span id="finalTime"></span></p>
+        <p>최종 점수: <span id="finalScore"></span></p>
+        <button class="btn" onclick="startNewGame()" style="margin-top: 25px; padding: 15px 30px; font-size: 1.2em;">다시 하기</button>
+    </div>
+
+    <div id="rulesOverlay" class="rules-overlay" style="display: none;" onclick="toggleRules()"></div>
+    <div id="rules" class="rules" style="display: none;">
+        <h3 style="color: #ffd700;">🎮 게임 방법</h3>
+        <p>• 같은 세트의 화투패 두 장을 선택하여 제거합니다 (예: 1월 광과 1월 피)</p>
+        <p>• 일부는 화투패가 아니라 캐릭터 세트를 찾아야합니다. </p>
+        <p>• 두 패 사이의 연결선이 2번 이하로 꺾여야 제거 가능합니다</p>
+        <p>• 연결선은 다른 패를 지나갈 수 없습니다</p>
+        <p>• 모든 62장의 패를 제거하면 승리합니다</p>
+        <br>
+        
+        <h3>🎯 점수 시스템</h3>
+        <p>• 기본 점수: 매치당 100점</p>
+        <p>• 연속 매치 보너스: 최대 500점</p>
+        <p>• 힌트 사용: -50점</p>
+        <p>• 섞기 사용: -100점</p>
+        <br>
+        
+        <h3>🔧 도구</h3>
+        <p>• 힌트: 3회 사용 가능 (매치 가능한 패 표시)</p>
+        <p>• 섞기: 2회 사용 가능 (패 위치 재배치)</p>
+        <br>
+        <button class="btn" onclick="toggleRules()">닫기</button>
+    </div>
+
+    <script>
+        const cards = [
+            // 1월 송학
+            { id: 1, month: 1, symbol: '🕊️', type: '광', name: '송학', fullName: '1월 송학광', image: 'images/01_gwang.png' },
+            { id: 1, month: 1, symbol: '🌲', type: '고', name: '송학', fullName: '1월 송학고', image: 'images/01_go.png' },
+            { id: 1, month: 1, symbol: '🎋', type: '초', name: '송학', fullName: '1월 송학초', image: 'images/01_cho.png' },
+            { id: 1, month: 1, symbol: '🍃', type: '피', name: '송학', fullName: '1월 송학피', image: 'images/01_pi.png' },
+            
+            // 2월 매화
+            { id: 2, month: 2, symbol: '🌺', type: '고', name: '매화', fullName: '2월 매화고', image: 'images/02_go1.png' },
+            { id: 2, month: 2, symbol: '🦅', type: '고', name: '매화', fullName: '2월 매화새', image: 'images/02_go2.png' },
+            { id: 2, month: 2, symbol: '🌸', type: '초', name: '매화', fullName: '2월 매화초', image: 'images/02_cho.png' },
+            { id: 2, month: 2, symbol: '🍃', type: '피', name: '매화', fullName: '2월 매화피', image: 'images/02_pi.png' },
+            
+            // 3월 벚꽃
+            { id: 3, month: 3, symbol: '🌸', type: '광', name: '벚꽃', fullName: '3월 벚꽃광', image: 'images/03_gwang.png' },
+            { id: 3, month: 3, symbol: '🎋', type: '고', name: '벚꽃', fullName: '3월 벚꽃고', image: 'images/03_go.png' },
+            { id: 3, month: 3, symbol: '🌺', type: '초', name: '벚꽃', fullName: '3월 벚꽃초', image: 'images/03_cho.png' },
+            { id: 3, month: 3, symbol: '🍃', type: '피', name: '벚꽃', fullName: '3월 벚꽃피', image: 'images/03_pi.png' },
+            
+            // 4월 흑싸리
+            { id: 4, month: 4, symbol: '🦅', type: '고', name: '흑싸리', fullName: '4월 두견새', image: 'images/04_go1.png' },
+            { id: 4, month: 4, symbol: '🎋', type: '고', name: '흑싸리', fullName: '4월 흑싸리고', image: 'images/04_go2.png' },
+            { id: 4, month: 4, symbol: '🌿', type: '초', name: '흑싸리', fullName: '4월 흑싸리초', image: 'images/04_cho.png' },
+            { id: 4, month: 4, symbol: '🍃', type: '피', name: '흑싸리', fullName: '4월 흑싸리피', image: 'images/04_pi.png' },
+            
+            // 5월 창포
+            { id: 5, month: 5, symbol: '🎋', type: '고', name: '창포', fullName: '5월 창포고', image: 'images/05_go1.png' },
+            { id: 5, month: 5, symbol: '🌉', type: '고', name: '창포', fullName: '5월 다리', image: 'images/05_go2.png' },
+            { id: 5, month: 5, symbol: '🌾', type: '초', name: '창포', fullName: '5월 창포초', image: 'images/05_cho.png' },
+            { id: 5, month: 5, symbol: '🍃', type: '피', name: '창포', fullName: '5월 창포피', image: 'images/05_pi.png' },
+            
+            // 6월 모란
+            { id: 6, month: 6, symbol: '🦋', type: '고', name: '모란', fullName: '6월 나비', image: 'images/06_go1.png' },
+            { id: 6, month: 6, symbol: '🌺', type: '고', name: '모란', fullName: '6월 모란고', image: 'images/06_go2.png' },
+            { id: 6, month: 6, symbol: '🌸', type: '초', name: '모란', fullName: '6월 모란초', image: 'images/06_cho.png' },
+            { id: 6, month: 6, symbol: '🍃', type: '피', name: '모란', fullName: '6월 모란피', image: 'images/06_pi.png' },
+            
+            // 7월 홍단
+            { id: 7, month: 7, symbol: '🐗', type: '고', name: '홍단', fullName: '7월 멧돼지', image: 'images/07_go.png' },
+            { id: 7, month: 7, symbol: '🎀', type: '초', name: '홍단', fullName: '7월 홍단', image: 'images/07_cho1.png' },
+            { id: 7, month: 7, symbol: '🌿', type: '초', name: '홍단', fullName: '7월 싸리초', image: 'images/07_cho2.png' },
+            { id: 7, month: 7, symbol: '🍃', type: '피', name: '홍단', fullName: '7월 싸리피', image: 'images/07_pi.png' },
+            
+            // 8월 공산
+            { id: 8, month: 8, symbol: '🌕', type: '광', name: '공산', fullName: '8월 달광', image: 'images/08_gwang.png' },
+            { id: 8, month: 8, symbol: '🦆', type: '고', name: '공산', fullName: '8월 기러기', image: 'images/08_go.png' },
+            { id: 8, month: 8, symbol: '🌾', type: '초', name: '공산', fullName: '8월 억새초', image: 'images/08_cho.png' },
+            { id: 8, month: 8, symbol: '🍃', type: '피', name: '공산', fullName: '8월 억새피', image: 'images/08_pi.png' },
+            
+            // 9월 국진
+            { id: 9, month: 9, symbol: '🍶', type: '고', name: '국진', fullName: '9월 술잔', image: 'images/09_go1.png' },
+            { id: 9, month: 9, symbol: '🏵️', type: '고', name: '국진', fullName: '9월 국화고', image: 'images/09_go2.png' },
+            { id: 9, month: 9, symbol: '🌼', type: '초', name: '국진', fullName: '9월 국화초', image: 'images/09_cho.png' },
+            { id: 9, month: 9, symbol: '🍃', type: '피', name: '국진', fullName: '9월 국화피', image: 'images/09_pi.png' },
+            
+            // 10월 단풍
+            { id: 10, month: 10, symbol: '🦌', type: '고', name: '단풍', fullName: '10월 사슴', image: 'images/10_go1.png' },
+            { id: 10, month: 10, symbol: '🍁', type: '고', name: '단풍', fullName: '10월 단풍고', image: 'images/10_go2.png' },
+            { id: 10, month: 10, symbol: '🌰', type: '초', name: '단풍', fullName: '10월 도토리', image: 'images/10_cho.png' },
+            { id: 10, month: 10, symbol: '🍃', type: '피', name: '단풍', fullName: '10월 단풍피', image: 'images/10_pi.png' },
+            
+            // 11월 오동
+            { id: 11, month: 11, symbol: '🌊', type: '광', name: '오동', fullName: '11월 비광', image: 'images/11_gwang.png' },
+            { id: 11, month: 11, symbol: '🕊️', type: '고', name: '오동', fullName: '11월 오동고', image: 'images/11_go.png' },
+            { id: 11, month: 11, symbol: '💧', type: '초', name: '오동', fullName: '11월 오동초', image: 'images/11_cho.png' },
+            { id: 11, month: 11, symbol: '🍃', type: '피', name: '오동', fullName: '11월 오동피', image: 'images/11_pi.png' },
+            
+            // 12월 비
+            { id: 12, month: 12, symbol: '💧', type: '광', name: '비', fullName: '12월 우광', image: 'images/12_gwang.png' },
+            { id: 12, month: 12, symbol: '🌊', type: '고', name: '비', fullName: '12월 비고', image: 'images/12_go.png' },
+            { id: 12, month: 12, symbol: '☔', type: '초', name: '비', fullName: '12월 비초', image: 'images/12_cho.png' },
+            { id: 12, month: 12, symbol: '🍃', type: '피', name: '비', fullName: '12월 비피', image: 'images/12_pi.png' },
+            
+            // 추가 세트 1: dory (4장)
+            { id: 13, month: 'dory', symbol: '🐠', type: '광', name: 'dory', fullName: 'dory 광', image: 'images/dory_gwang.png' },
+            { id: 13, month: 'dory', symbol: '🐟', type: '고', name: 'dory', fullName: 'dory 고', image: 'images/dory_go.png' },
+            { id: 13, month: 'dory', symbol: '🌊', type: '초', name: 'dory', fullName: 'dory 초', image: 'images/dory_cho.png' },
+            { id: 13, month: 'dory', symbol: '💙', type: '피', name: 'dory', fullName: 'dory 피', image: 'images/dory_pi.png' },
+            
+            // 추가 세트 2: chu (4장)
+            { id: 14, month: 'chu', symbol: '⚡', type: '광', name: 'chu', fullName: 'chu 광', image: 'images/chu_gwang.png' },
+            { id: 14, month: 'chu', symbol: '🔥', type: '고', name: 'chu', fullName: 'chu 고', image: 'images/chu_go.png' },
+            { id: 14, month: 'chu', symbol: '💛', type: '초', name: 'chu', fullName: 'chu 초', image: 'images/chu_cho.png' },
+            { id: 14, month: 'chu', symbol: '⭐', type: '피', name: 'chu', fullName: 'chu 피', image: 'images/chu_pi.png' },
+            
+            // 추가 세트 3: hgwang (4장)
+            { id: 15, month: 'hgwang', symbol: '👑', type: '광', name: 'hgwang', fullName: 'hgwang 광', image: 'images/hgwang_gwang.png' },
+            { id: 15, month: 'hgwang', symbol: '💎', type: '고', name: 'hgwang', fullName: 'hgwang 고', image: 'images/hgwang_go.png' },
+            { id: 15, month: 'hgwang', symbol: '🔮', type: '초', name: 'hgwang', fullName: 'hgwang 초', image: 'images/hgwang_cho.png' },
+            { id: 15, month: 'hgwang', symbol: '✨', type: '피', name: 'hgwang', fullName: 'hgwang 피', image: 'images/hgwang_pi.png' },
+            
+            // 추가 세트 4: doya (2장)
+            { id: 16, month: 'doya', symbol: '🎯', type: '광', name: 'doya', fullName: 'doya 광', image: 'images/doya_gwang.png' },
+            { id: 16, month: 'doya', symbol: '🎲', type: '고', name: 'doya', fullName: 'doya 고', image: 'images/doya_go.png' }
+        ];
+
+        const HEART_PATTERN = [
+            [0,0,1,1,0,0,0,0,1,1,0,0],
+            [0,1,1,1,1,0,0,1,1,1,1,0],
+            [1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1],
+            [0,1,1,1,1,1,1,1,1,1,1,0],
+            [0,0,1,1,1,1,1,1,1,1,0,0],
+            [0,0,0,1,1,1,1,1,1,0,0,0],
+            [0,0,0,0,0,1,1,0,0,0,0,0]
+        ];
+
+        let game = {
+            board: [],
+            selected: null,
+            score: 0,
+            startTime: null,
+            timer: null,
+            active: false,
+            hints: 3,
+            shuffles: 2,
+            combo: 0,
+            matched: 0
+        };
+
+        function createBoard() {
+            const shuffled = [...cards].sort(() => Math.random() - 0.5);
+            const positions = [];
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 12; col++) {
+                    if (HEART_PATTERN[row][col] === 1) {
+                        positions.push({ row, col });
+                    }
+                }
+            }
+            positions.sort(() => Math.random() - 0.5);
+
+            const board = Array(8).fill().map(() => Array(12).fill(null));
+            for (let i = 0; i < shuffled.length && i < positions.length; i++) {
+                const pos = positions[i];
+                board[pos.row][pos.col] = { ...shuffled[i], row: pos.row, col: pos.col, removed: false };
+            }
+            return board;
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('gameBoard');
+            boardEl.innerHTML = '';
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 12; col++) {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'card';
+                    cardEl.dataset.row = row;
+                    cardEl.dataset.col = col;
+                    
+                    const card = game.board[row][col];
+                    if (card && !card.removed) {
+                        if (card.image) {
+                            cardEl.style.backgroundImage = 'url("' + card.image + '")';
+                            cardEl.classList.add('has-image');
+                            cardEl.innerHTML = '<div style="display: none;"><div style="font-size: 1.4em;">' + card.symbol + '</div><div style="font-size: 0.7em; opacity: 0.8;">' + card.id + '</div></div>';
+                        } else {
+                            cardEl.innerHTML = '<div style="font-size: 1.4em;">' + card.symbol + '</div><div style="font-size: 0.7em; opacity: 0.8;">' + card.id + '</div>';
+                        }
+                        cardEl.onclick = () => selectCard(row, col);
+                    } else {
+                        cardEl.classList.add('empty');
+                    }
+                    
+                    boardEl.appendChild(cardEl);
+                }
+            }
+            updateDisplay();
+        }
+
+        function selectCard(row, col) {
+            if (!game.active) return;
+            const card = game.board[row][col];
+            if (!card || card.removed) return;
+
+            clearHighlights();
+
+            if (game.selected === null) {
+                game.selected = { row, col };
+                document.querySelector('[data-row="' + row + '"][data-col="' + col + '"]').classList.add('selected');
+                document.getElementById('status').textContent = card.fullName + ' 선택됨. 같은 세트를 찾으세요!';
+            } else {
+                const first = game.board[game.selected.row][game.selected.col];
+                
+                if (game.selected.row === row && game.selected.col === col) {
+                    game.selected = null;
+                    document.getElementById('status').textContent = '같은 월과, 같은 캐릭터 세트를 한쌍씩 찾으세요!';
+                    return;
+                }
+                
+                if (first.id === card.id && canConnect(game.selected.row, game.selected.col, row, col)) {
+                    matchCards(game.selected.row, game.selected.col, row, col);
+                    game.selected = null;
+                } else {
+                    game.selected = { row, col };
+                    document.querySelector('[data-row="' + row + '"][data-col="' + col + '"]').classList.add('selected');
+                    document.getElementById('status').textContent = first.id === card.id ? '연결할 수 없습니다.' : card.fullName + ' 선택됨.';
+                }
+            }
+        }
+
+        function canConnect(r1, c1, r2, c2) {
+            // 직선 연결 시도 (0번 꺾기)
+            if (canConnectStraight(r1, c1, r2, c2)) return true;
+            
+            // L자 연결 시도 (1번 꺾기) - 두 가지 경로 모두 확인
+            if (canConnectLShape(r1, c1, r2, c2)) return true;
+            
+            // Z자 연결 시도 (2번 꺾기)
+            if (canConnectZShape(r1, c1, r2, c2)) return true;
+            
+            return false;
+        }
+
+        function canConnectStraight(r1, c1, r2, c2) {
+            if (r1 === r2) {
+                // 같은 행 - 수평선
+                const minCol = Math.min(c1, c2);
+                const maxCol = Math.max(c1, c2);
+                for (let col = minCol + 1; col < maxCol; col++) {
+                    if (game.board[r1][col] && !game.board[r1][col].removed) {
+                        return false;
+                    }
+                }
+                return true;
+            } else if (c1 === c2) {
+                // 같은 열 - 수직선
+                const minRow = Math.min(r1, r2);
+                const maxRow = Math.max(r1, r2);
+                for (let row = minRow + 1; row < maxRow; row++) {
+                    if (game.board[row][c1] && !game.board[row][c1].removed) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        function canConnectLShape(r1, c1, r2, c2) {
+            // L자 연결: 두 가지 경로 확인
+            
+            // 경로 1: (r1, c1) → (r1, c2) → (r2, c2)
+            // 중간점 (r1, c2)가 비어있거나 목표점 중 하나여야 함
+            if ((isEmpty(r1, c2) || (r1 === r2 && c2 === c2)) &&
+                isPathClear(r1, c1, r1, c2) && 
+                isPathClear(r1, c2, r2, c2)) {
+                return true;
+            }
+            
+            // 경로 2: (r1, c1) → (r2, c1) → (r2, c2)
+            // 중간점 (r2, c1)이 비어있거나 목표점 중 하나여야 함
+            if ((isEmpty(r2, c1) || (r2 === r1 && c1 === c1)) &&
+                isPathClear(r1, c1, r2, c1) && 
+                isPathClear(r2, c1, r2, c2)) {
+                return true;
+            }
+            
+            return false;
+        }
+
+        function canConnectZShape(r1, c1, r2, c2) {
+            // Z자 연결: 3개의 직선으로 연결 (2번 꺾기)
+            
+            // 수평-수직-수평 패턴 확인
+            for (let midRow = 0; midRow < 8; midRow++) {
+                if (midRow !== r1 && midRow !== r2) {
+                    // 경로: (r1,c1) → (r1,c2) → (midRow,c2) → (r2,c2)
+                    if (isEmpty(r1, c2) && isEmpty(midRow, c2) &&
+                        isPathClear(r1, c1, r1, c2) &&
+                        isPathClear(r1, c2, midRow, c2) &&
+                        isPathClear(midRow, c2, r2, c2)) {
+                        return true;
+                    }
+                    
+                    // 경로: (r1,c1) → (midRow,c1) → (midRow,c2) → (r2,c2)
+                    if (isEmpty(midRow, c1) && isEmpty(midRow, c2) &&
+                        isPathClear(r1, c1, midRow, c1) &&
+                        isPathClear(midRow, c1, midRow, c2) &&
+                        isPathClear(midRow, c2, r2, c2)) {
+                        return true;
+                    }
+                }
+            }
+            
+            // 수직-수평-수직 패턴 확인
+            for (let midCol = 0; midCol < 12; midCol++) {
+                if (midCol !== c1 && midCol !== c2) {
+                    // 경로: (r1,c1) → (r2,c1) → (r2,midCol) → (r2,c2)
+                    if (isEmpty(r2, c1) && isEmpty(r2, midCol) &&
+                        isPathClear(r1, c1, r2, c1) &&
+                        isPathClear(r2, c1, r2, midCol) &&
+                        isPathClear(r2, midCol, r2, c2)) {
+                        return true;
+                    }
+                    
+                    // 경로: (r1,c1) → (r1,midCol) → (r2,midCol) → (r2,c2)
+                    if (isEmpty(r1, midCol) && isEmpty(r2, midCol) &&
+                        isPathClear(r1, c1, r1, midCol) &&
+                        isPathClear(r1, midCol, r2, midCol) &&
+                        isPathClear(r2, midCol, r2, c2)) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        function isEmpty(row, col) {
+            if (row < 0 || row >= 8 || col < 0 || col >= 12) return true;
+            const card = game.board[row][col];
+            return !card || card.removed;
+        }
+
+        function isPathClear(r1, c1, r2, c2) {
+            if (r1 === r2) {
+                const minCol = Math.min(c1, c2), maxCol = Math.max(c1, c2);
+                for (let col = minCol + 1; col < maxCol; col++) {
+                    if (!isEmpty(r1, col)) return false;
+                }
+                return true;
+            }
+            if (c1 === c2) {
+                const minRow = Math.min(r1, r2), maxRow = Math.max(r1, r2);
+                for (let row = minRow + 1; row < maxRow; row++) {
+                    if (!isEmpty(row, c1)) return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        function createExplosionEffect(cardElement) {
+            const rect = cardElement.getBoundingClientRect();
+            const gameBoard = document.getElementById('gameBoard');
+            const boardRect = gameBoard.getBoundingClientRect();
+            
+            // 카드 중심점 계산 (게임보드 기준)
+            const centerX = rect.left + rect.width / 2 - boardRect.left;
+            const centerY = rect.top + rect.height / 2 - boardRect.top;
+            
+            // 폭발 컨테이너 생성
+            const explosion = document.createElement('div');
+            explosion.className = 'explosion-effect';
+            explosion.style.left = centerX + 'px';
+            explosion.style.top = centerY + 'px';
+            
+            // 별 이펙트 추가
+            for (let i = 0; i < 6; i++) {
+                const star = document.createElement('div');
+                star.className = 'explosion-star';
+                star.textContent = '✨';
+                const angle = (i * 60) * Math.PI / 180;
+                const distance = 30;
+                star.style.left = (Math.cos(angle) * distance - 10) + 'px';
+                star.style.top = (Math.sin(angle) * distance - 10) + 'px';
+                star.style.animationDelay = (i * 0.1) + 's';
+                explosion.appendChild(star);
+            }
+            
+            // 파티클 이펙트 추가
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3'];
+            for (let i = 0; i < 12; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'explosion-particle';
+                particle.style.backgroundColor = colors[i % colors.length];
+                
+                const angle = (i * 30) * Math.PI / 180;
+                const distance = 40 + Math.random() * 20;
+                const dx = Math.cos(angle) * distance;
+                const dy = Math.sin(angle) * distance;
+                
+                particle.style.setProperty('--dx', dx + 'px');
+                particle.style.setProperty('--dy', dy + 'px');
+                particle.style.animationDelay = (Math.random() * 0.2) + 's';
+                
+                explosion.appendChild(particle);
+            }
+            
+            gameBoard.appendChild(explosion);
+            
+            // 0.8초 후 이펙트 제거
+            setTimeout(() => {
+                if (explosion.parentNode) {
+                    explosion.remove();
+                }
+            }, 800);
+        }
+
+        function playMatchSound() {
+            // Web Audio API를 사용한 "펑!" 소리 생성
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 높은 주파수의 짧은 소리 생성
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // "펑!" 소리를 위한 주파수 설정
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.2);
+                
+                // 볼륨 설정 (빠르게 감소)
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                // 소리 재생
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+                
+            } catch (error) {
+                // 오디오 지원이 안 되는 경우 무시
+                console.log('Audio not supported');
+            }
+        }
+
+        function matchCards(r1, c1, r2, c2) {
+            game.board[r1][c1].removed = true;
+            game.board[r2][c2].removed = true;
+            game.matched++;
+            game.combo++;
+            
+            let points = 100 + (game.combo - 1) * 50;
+            points = Math.min(points, 500);
+            game.score += points;
+            
+            const card1 = document.querySelector('[data-row="' + r1 + '"][data-col="' + c1 + '"]');
+            const card2 = document.querySelector('[data-row="' + r2 + '"][data-col="' + c2 + '"]');
+            
+            // 폭발 이펙트와 소리 추가
+            createExplosionEffect(card1);
+            createExplosionEffect(card2);
+            playMatchSound();
+            
+            setTimeout(() => {
+                card1.classList.add('empty');
+                card2.classList.add('empty');
+                card1.innerHTML = '';
+                card2.innerHTML = '';
+                card1.onclick = null;
+                card2.onclick = null;
+                card1.style.background = 'transparent';
+                card1.style.border = 'none';
+                card2.style.background = 'transparent';
+                card2.style.border = 'none';
+            }, 300);
+            
+            document.getElementById('status').textContent = '매치! +' + points + '점 (' + game.combo + '연속)';
+            updateDisplay();
+            
+            if (game.matched >= 31) {
+                endGame(true);
+            }
+        }
+
+        function getHint() {
+            if (game.hints <= 0 || !game.active) return;
+            game.hints--;
+            game.score = Math.max(0, game.score - 50);
+            game.combo = 0;
+            
+            clearHighlights();
+            
+            const availableCards = [];
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 12; col++) {
+                    const card = game.board[row][col];
+                    if (card && !card.removed) {
+                        availableCards.push({ id: card.id, row, col });
+                    }
+                }
+            }
+            
+            for (let i = 0; i < availableCards.length; i++) {
+                for (let j = i + 1; j < availableCards.length; j++) {
+                    if (availableCards[i].id === availableCards[j].id && 
+                        canConnect(availableCards[i].row, availableCards[i].col, availableCards[j].row, availableCards[j].col)) {
+                        
+                        document.querySelector('[data-row="' + availableCards[i].row + '"][data-col="' + availableCards[i].col + '"]').classList.add('hint');
+                        document.querySelector('[data-row="' + availableCards[j].row + '"][data-col="' + availableCards[j].col + '"]').classList.add('hint');
+                        
+                        setTimeout(clearHighlights, 3000);
+                        updateDisplay();
+                        return;
+                    }
+                }
+            }
+            updateDisplay();
+        }
+
+        function shuffleCards() {
+            if (game.shuffles <= 0 || !game.active) return;
+            game.shuffles--;
+            game.score = Math.max(0, game.score - 100);
+            game.combo = 0;
+            
+            const remaining = [];
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 12; col++) {
+                    const card = game.board[row][col];
+                    if (card && !card.removed) {
+                        remaining.push({ 
+                            id: card.id, 
+                            month: card.month, 
+                            symbol: card.symbol, 
+                            type: card.type, 
+                            name: card.name, 
+                            fullName: card.fullName, 
+                            image: card.image 
+                        });
+                    }
+                }
+            }
+            
+            const positions = [];
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 12; col++) {
+                    if (HEART_PATTERN[row][col] === 1) {
+                        positions.push({ row, col });
+                    }
+                }
+            }
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 12; col++) {
+                    game.board[row][col] = null;
+                }
+            }
+            
+            positions.sort(() => Math.random() - 0.5);
+            
+                            for (let i = 0; i < remaining.length && i < positions.length; i++) {
+                const pos = positions[i];
+                game.board[pos.row][pos.col] = { 
+                    id: remaining[i].id, 
+                    month: remaining[i].month, 
+                    symbol: remaining[i].symbol, 
+                    type: remaining[i].type, 
+                    name: remaining[i].name, 
+                    fullName: remaining[i].fullName, 
+                    image: remaining[i].image, 
+                    row: pos.row, 
+                    col: pos.col, 
+                    removed: false 
+                };
+            }
+            
+            game.selected = null;
+            renderBoard();
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('selected', 'hint');
+            });
+        }
+
+        function updateDisplay() {
+            document.getElementById('score').textContent = game.score;
+            document.getElementById('hintBtn').disabled = game.hints <= 0;
+            document.getElementById('hintBtn').textContent = '힌트 (' + game.hints + '번)';
+            document.getElementById('shuffleBtn').disabled = game.shuffles <= 0;
+            document.getElementById('shuffleBtn').textContent = '섞기 (' + game.shuffles + '번)';
+        }
+
+        function startTimer() {
+            game.startTime = Date.now();
+            game.timer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - game.startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = minutes + ':' + seconds;
+            }, 1000);
+        }
+
+        function startNewGame() {
+            clearInterval(game.timer);
+            game = {
+                board: createBoard(),
+                selected: null,
+                score: 0,
+                startTime: null,
+                timer: null,
+                active: true,
+                hints: 3,
+                shuffles: 2,
+                combo: 0,
+                matched: 0
+            };
+            
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('timer').textContent = '00:00';
+            document.getElementById('status').textContent = '같은 월의 화투패와 캐릭터를 한 쌍씩 선택하세요!';
+            
+            renderBoard();
+            startTimer();
+        }
+
+        function endGame(won) {
+            game.active = false;
+            clearInterval(game.timer);
+            
+            document.getElementById('finalTime').textContent = document.getElementById('timer').textContent;
+            document.getElementById('finalScore').textContent = game.score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        function toggleRules() {
+            const rules = document.getElementById('rules');
+            const overlay = document.getElementById('rulesOverlay');
+            
+            if (rules.style.display === 'none') {
+                rules.style.display = 'block';
+                overlay.style.display = 'block';
+            } else {
+                rules.style.display = 'none';
+                overlay.style.display = 'none';
+            }
+        }
+
+        // 게임 시작
+        startNewGame();
+        
+        // 타이틀 이미지 설정
+        const titleElement = document.getElementById('gameTitle');
+        titleElement.style.backgroundImage = 'url("images/title.png")';
+        titleElement.style.backgroundSize = 'cover';
+        titleElement.style.backgroundPosition = 'center';
+        titleElement.style.backgroundRepeat = 'no-repeat';
+        titleElement.textContent = ''; // 텍스트 제거
+    </script>
+</body>
+</html>
